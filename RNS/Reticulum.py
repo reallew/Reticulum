@@ -291,6 +291,12 @@ class Reticulum:
 
         self.is_shared_instance = False
         self.shared_instance_interface = None
+        # libreticulum patch: RNS_REQUIRE_SHARED=1 env var forces require_shared_instance=True
+        # for test framework usage — ensures tools FAIL LOUDLY if they cannot connect to a
+        # running daemon, instead of silently falling back to their own Python transport.
+        import os as _os
+        if _os.environ.get("RNS_REQUIRE_SHARED") == "1":
+            require_shared_instance = True
         self.require_shared = require_shared_instance
         self.is_connected_to_shared_instance = False
         self.is_standalone_instance = False
@@ -429,10 +435,22 @@ class Reticulum:
             if self.is_shared_instance and self.require_shared:
                 raise SystemError("No shared instance available, but application that started Reticulum required it")
 
+            # libreticulum patch: also raise when connect failed and we fell back to standalone.
+            # Upstream only raises when we STARTED as server; it lets tools silently run their own
+            # transport if both bind and client-connect fail. For test-framework usage we want
+            # loud failure so probes/status don't accidentally run against a Python-side identity
+            # when the Rust daemon is unreachable.
+            if self.is_standalone_instance and self.require_shared:
+                raise SystemError("Shared instance required but could not connect; refusing to run as standalone")
+
         else:
             self.is_shared_instance = False
             self.is_standalone_instance = True
             self.is_connected_to_shared_instance = False
+            # libreticulum patch: if shared instance was required but share_instance=no in config,
+            # this path is still silent-fallback. Raise to match the intent.
+            if self.require_shared:
+                raise SystemError("Shared instance required but share_instance is disabled in config")
             self.__start_jobs()
 
     def __apply_config(self):
