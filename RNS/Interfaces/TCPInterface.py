@@ -618,6 +618,24 @@ class TCPServerInterface(Interface):
         spawned_interface.announce_rate_target = self.announce_rate_target
         spawned_interface.announce_rate_grace = self.announce_rate_grace
         spawned_interface.announce_rate_penalty = self.announce_rate_penalty
+        # libreticulum patch: copy ingress_control / announce_cap from
+        # parent. Upstream lets spawned TCPClient children fall back to
+        # defaults (ingress_control=True, announce_cap=ANNOUNCE_CAP), so
+        # an operator who disables ingress limiting on the
+        # TCPServerInterface in config still gets burst-detection queuing
+        # on every accepted peer connection. That breaks 3-node relay
+        # topologies: path-response announces get held at the relay's
+        # spawned child and never reach the original requester.
+        spawned_interface.ingress_control = self.ingress_control
+        spawned_interface.ic_max_held_announces = self.ic_max_held_announces
+        spawned_interface.ic_burst_hold = self.ic_burst_hold
+        spawned_interface.ic_burst_freq_new = self.ic_burst_freq_new
+        spawned_interface.ic_burst_freq = self.ic_burst_freq
+        spawned_interface.ic_new_time = self.ic_new_time
+        spawned_interface.ic_burst_penalty = self.ic_burst_penalty
+        spawned_interface.ic_held_release_interval = self.ic_held_release_interval
+        if hasattr(self, "announce_cap"):
+            spawned_interface.announce_cap = self.announce_cap
         spawned_interface.mode = self.mode
         spawned_interface.HW_MTU = self.HW_MTU
         spawned_interface.online = True
